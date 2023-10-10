@@ -1,8 +1,8 @@
-# xDB: Experience Layer of the Modern Internet
+# xDB: Experience Database (xDB)
 
 ## Overview
 
-xDB aims to be the **Experience Layer of the Modern Internet**. Our mission is to track, analyze, and monetize experiences across all touchpoints—both online and offline. This repository focuses specifically on xDB's validation layer, a critical component that ensures high-quality, reliable data for driving unparalleled business growth.
+xDB aims to be the **Experience Database**. Our mission is to track, analyze, and monetize experiences across all touchpoints—both online and offline. This repository focuses specifically on xDB's validation layer, a critical component that ensures high-quality, reliable data for driving unparalleled business growth.
 
 ## Features
 
