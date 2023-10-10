@@ -43,3 +43,6 @@ Thumbs.db
 *.tmp
 *.swp
 *.swo
+
+# Credentials
+.env
