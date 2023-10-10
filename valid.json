@@ -1,0 +1,18 @@
+curl -X POST http://localhost:3000/xapi/statements \
+-H "Content-Type: application/json" \
+-H "Authorization: Basic $(echo -n 'empress:Empress19' | base64)" \
+-H "X-Experience-API-Version: 1.0.3" \
+-d '{
+    "actor": {
+        "name": "John Doe",
+        "mbox": "mailto:john.doe@example.com"
+    },
+    "verb": {
+        "id": "http://adlnet.gov/expapi/verbs/answered",
+        "display": { "en-US": "answered" }
+    },
+    "object": {
+        "id": "http://example.com/activities/some-activity",
+        "objectType": "Activity"
+    }
+}'
