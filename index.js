@@ -63,7 +63,7 @@ const initializeCollection = async (uri, dbName, collectionName) => {
 })();
 
 // API Endpoint to handle xAPI statements
-app.post("/xapi/statements", async (req, res) => {
+app.post("/testnet/statements", async (req, res) => {
   // Validate basic authentication from request headers
   const auth = req.headers["authorization"];
   const validAuth = `Basic ${Buffer.from(
