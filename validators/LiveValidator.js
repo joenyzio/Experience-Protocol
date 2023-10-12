@@ -1,4 +1,4 @@
-class BasicValidator {
+class LiveValidator {
   validateStatement(statement) {
     if (typeof statement !== "object" || statement === null) {
       return { valid: false, message: "Statement is not an object." };
@@ -24,4 +24,4 @@ class BasicValidator {
 }
 
 // Use CommonJS export
-module.exports = BasicValidator;
+module.exports = LiveValidator;

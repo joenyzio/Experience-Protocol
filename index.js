@@ -1,76 +1,120 @@
+// Load environment variables and required modules
 require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const MongoClient = require("mongodb").MongoClient;
-const cors = require("cors"); // Importing CORS package
+const cors = require("cors");
+const LiveValidator = require("./validators/LiveValidator"); // Assume this is a class
+
+// Initialize Express app and set default port
 const app = express();
-const port = process.env.PORT || 3000;
-// Use require for importing the validator
-const BasicValidator = require("./BasicValidator");
-// const { StatementValidator } = require("./xapiValidator");
-const validator = new BasicValidator();
+const port = process.env.APP_PORT || 3000;
 
-// Middleware
+// Instantiate the LiveValidator class
+const validator = new LiveValidator();
+
+// Apply middleware
 app.use(bodyParser.json());
-app.use(cors()); // Enable CORS for all routes
+app.use(cors());
 
-// Construct MongoDB URI from Environment Variables
-const uri = `mongodb+srv://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}@${process.env.MONGODB_HOST}/`;
+// MongoDB credentials extracted from environment variables
+const mongoCredentials = {
+  username: process.env.MONGODB_USERNAME,
+  password: process.env.MONGODB_PASSWORD,
+  host: process.env.MONGODB_HOST,
+};
 
-// MongoDB variables
-let db, collection;
+// Function to generate MongoDB URI
+const generateMongoURI = (dbName) =>
+  `mongodb+srv://${mongoCredentials.username}:${mongoCredentials.password}@${mongoCredentials.host}/${dbName}`;
 
-// Initialize MongoDB Connection Once
-MongoClient.connect(uri)
-  .then((client) => {
-    db = client.db(process.env.DATABASE_NAME);
-    collection = db.collection(process.env.COLLECTION_NAME);
-    console.log("Connected to MongoDB");
-  })
-  .catch((err) => {
-    console.error("Error connecting to MongoDB", err);
+// Declare variables for MongoDB collections
+let experiencesCollection, eventsCollection;
+
+// Function to initialize a MongoDB collection
+const initializeCollection = async (uri, dbName, collectionName) => {
+  try {
+    const client = await MongoClient.connect(uri);
+    const db = client.db(dbName);
+    return db.collection(collectionName);
+  } catch (err) {
+    console.error(`Error connecting to ${dbName}`, err);
+  }
+};
+
+// Immediately Invoked Function Expression (IIFE) to initialize MongoDB collections
+(async () => {
+  experiencesCollection = await initializeCollection(
+    generateMongoURI(process.env.EXPERIENCES_DATABASE_NAME),
+    process.env.EXPERIENCES_DATABASE_NAME,
+    process.env.EXPERIENCES_COLLECTION_NAME
+  );
+
+  eventsCollection = await initializeCollection(
+    generateMongoURI(process.env.EVENTS_DATABASE_NAME),
+    process.env.EVENTS_DATABASE_NAME,
+    process.env.EVENTS_COLLECTION_NAME
+  );
+
+  // Start the Express server after database initialization
+  app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}/`);
   });
+})();
 
-// Start Express Server
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}/`);
-});
-
-// xAPI Endpoint
-// xAPI Endpoint
+// API Endpoint to handle xAPI statements
 app.post("/xapi/statements", async (req, res) => {
-  // Basic Authentication
+  // Validate basic authentication from request headers
   const auth = req.headers["authorization"];
-  if (
-    !auth ||
-    auth !== "Basic " + Buffer.from("empress:Empress19").toString("base64")
-  ) {
+  const validAuth = `Basic ${Buffer.from(
+    `${mongoCredentials.username}:${mongoCredentials.password}`
+  ).toString("base64")}`;
+
+  if (!auth || auth !== validAuth) {
     return res.status(401).send("Unauthorized");
   }
 
-  //   Using StatementValidator
-  //   const validator = new StatementValidator();
-  //   if (!validator.validateStatement(req.body)) {
-  //     return res.status(400).send("Invalid xAPI statement");
-  //   }
-  // Using BasicValidator
+  // Validate the xAPI statement using the LiveValidator instance
   const validationResult = validator.validateStatement(req.body);
-  if (!validationResult.valid) {
-    return res.status(400).send(validationResult.message);
-  }
 
-  // Database and Collection check
-  if (!db || !collection) {
-    res.status(500).send("Internal Server Error: MongoDB not initialized");
-    return;
+  // Choose the appropriate MongoDB collection based on the validation result
+  const targetCollection = validationResult.valid
+    ? experiencesCollection
+    : eventsCollection;
+
+  // Check if MongoDB collection is initialized
+  if (!targetCollection) {
+    return res
+      .status(500)
+      .send("Internal Server Error: Collection not initialized");
   }
 
   try {
-    const xAPIStatement = req.body;
-    await collection.insertOne(xAPIStatement);
-    res.status(200).send("xAPI statement inserted");
+    // Prepare data with a valid timestamp
+    const dataToInsert = { ...req.body, timestamp: new Date() };
+
+    // Handle non-xAPI compliant data
+    if (!validationResult.valid) {
+      dataToInsert.metadata = {
+        isValidXAPI: false,
+        receivedAt: new Date(),
+        validationMessage: validationResult.message,
+      };
+      res
+        .status(400)
+        .send("Data inserted in Events collection due to non-compliance");
+    } else {
+      res
+        .status(200)
+        .send("xAPI compliant data inserted in Experiences collection");
+    }
+
+    // Insert the data into the chosen MongoDB collection
+    await targetCollection.insertOne(dataToInsert);
   } catch (err) {
-    console.error("Error inserting xAPI statement:", err);
-    res.status(500).send("Internal Server Error");
+    console.error("Error inserting data:", err);
+    if (!res.headersSent) {
+      res.status(500).send("Internal Server Error");
+    }
   }
 });
